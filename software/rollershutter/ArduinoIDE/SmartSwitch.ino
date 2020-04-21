@@ -192,7 +192,7 @@ void setup() {
   EEPROM.get(1000, broker);                                                           // Get Broker-IP from EEPROM
   EEPROM.get(10, down_time);                                                          // Get Down-Time from EEPROM
   EEPROM.get(20, up_time);                                                            // Get UP-Time from EEPROM
-  EEPROM.get(30, pos);                                                                // Get Position from EEPROM
+  //EEPROM.get(30, pos);                                                                // Get Position from EEPROM
   EEPROM.end();                                                                       // Free memory
   if (site == "" || (String(site).length() > 100)) {                                  // If EEPROM (site) empty or flushed with nonsence
     hostname = "SmartSwitch_" + String(WiFi.macAddress());                            // Networkname of Module (Identifier: MAC)
@@ -220,15 +220,16 @@ void setup() {
     EEPROM.commit();                                                                  // Only needed for ESP8266 to get data written
     EEPROM.end();                                                                     // Free RAM copy of structure
   }
-  if (isnan(pos)) {                                                                   // Check if EEPROM-Content "pos" is not a number
-    Serial.println("NAN: pos!");                                                      // Debug printing
-    pos = 0.0f;                                                                        // Set pos to 0.0
-    EEPROM.begin(4095);                                                               // Define EEPROM
-    EEPROM.put(30, pos);                                                              // Write "pos" to EEPROM
-    delay(200);                                                                       // Delay
-    EEPROM.commit();                                                                  // Only needed for ESP8266 to get data written
-    EEPROM.end();                                                                     // Free RAM copy of structure
-  }
+  // if (isnan(pos)) {                                                                   // Check if EEPROM-Content "pos" is not a number
+  //   Serial.println("NAN: pos!");                                                      // Debug printing
+  //   
+  pos = 0.0f;                                                                        // Set pos to 0.0
+  //   EEPROM.begin(4095);                                                               // Define EEPROM
+  //   EEPROM.put(30, pos);                                                              // Write "pos" to EEPROM
+  //   delay(200);                                                                       // Delay
+  //   EEPROM.commit();                                                                  // Only needed for ESP8266 to get data written
+  //   EEPROM.end();                                                                     // Free RAM copy of structure
+  // }
   
 // *** Initialize WiFi-Event-Handler ********************************************************************************************************************************************
   static WiFiEventHandler e1;                                                         // Define WiFi-Handler
@@ -369,7 +370,7 @@ void moveDown() {
   digitalWrite(IO_O1, HIGH);                                                          // Set IO_O1 Relais (power on motor)
 }
 
-/ ##############################################################################################################################################################################
+// ##############################################################################################################################################################################
 // ### Stop Manual Control after 1 min  ########################################################################################################################################################
 // ##############################################################################################################################################################################
 void ManualControlTimer(){
@@ -661,21 +662,23 @@ void ButtonHandling() {
 
 
 // *** Start Mannual Mode with both Button-Press for one second *********************************************************************************************************************************************
-   if (!digitalRead(IO_I1) && !digitalRead(IO_I2)) {                                   // If  both buttons are pressed
-    for (int i = 1; i <= 10; i++) {                                                   // Check for one second 
-      delay(100);                                                                     // Every tenth of a second
-      if (!digitalRead(IO_I1) && !digitalRead(IO_I2) && i==10) {
-        Serial.println("MANUAL_START");                                                   // Debug printing
-        ausgabe = "Manual-Mode...";                                                       // Build strings to send to MQTT-Broker and send it                                                           // +++
-        top = topic + hostname_char + "/status/info/";                                    // Built topic to sent message to                                                                             // +++
-        client.publish(top.c_str(), ausgabe.c_str());                                     // Publish MQTT-Message                                                                                       // +++
-        manual_flag = true;                                                               // Set Manual-Flag}
-        manual_timer = millis();                                                          //StartTimer for Manual Mode
-      else { 
-        return;   
+    if (!digitalRead(IO_I1) && !digitalRead(IO_I2)) {                                   // If  both buttons are pressed
+      for (int i = 1; i <= 10; i++) {                                                   // Check for one second 
+        delay(100);                                                                     // Every tenth of a second
+        if (!digitalRead(IO_I1) && !digitalRead(IO_I2) && i==10) {
+          Serial.println("MANUAL_START");                                                   // Debug printing
+          ausgabe = "Manual-Mode...";                                                       // Build strings to send to MQTT-Broker and send it                                                           // +++
+          top = topic + hostname_char + "/status/info/";                                    // Built topic to sent message to                                                                             // +++
+          client.publish(top.c_str(), ausgabe.c_str());                                     // Publish MQTT-Message                                                                                       // +++
+          manual_flag = true;                                                               // Set Manual-Flag}
+          manual_timer = millis();                                                          //StartTimer for Manual Mode
+        }
+        else { 
+          return;   
+        } 
       } 
-    } 
-   }
+    }
+
 // *** Handling normal Button-Press *********************************************************************************************************************************************
     if(!teach_flag && !manual_flag) {                                                 // If no special flag (either teach or manual) is set
       if (!digitalRead(IO_I1)) {                                                      // If UP is pressed
