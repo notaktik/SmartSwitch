@@ -68,7 +68,7 @@ char MQTT_name_char[128];                                                       
 String hostname;                                                                      // Variable for Name of Module (part of MQTT-Topic, either IP of module or stored site) 
 String topic = "/SmartSwitch/";                                                       // First part of MQTT-Topic for publishing                *** Part of MQTT-Topic for publishing ***
 int WiFiManagerTimeout = 180;                                                         // Define Timeout for Wifi-Manager and set it to 180s     *** Timeout for WiFi-Manager          ***
-char MQTT_BROKER[40] = "192.168.2.115";                                               // Preset IP of MQTT-Broker                               *** Preset-IP of MQTT-Broker          ***
+char MQTT_BROKER[40] = "192.168.178.100";                                               // Preset IP of MQTT-Broker                               *** Preset-IP of MQTT-Broker          ***
 bool wifiFirstConnected = false;                                                      // Flag for first WiFi connection
 int cf = 0;                                                                           // WiFi Connection flag
 String ausgabe;                                                                       // Variable for MQTT-Message
@@ -85,8 +85,8 @@ bool drive = false;                                                             
 bool manual_flag = false;                                                             // Flag for manual motion
 unsigned int down_time = 0;                                                           // Variable for teached Down-Time
 unsigned int up_time = 0;                                                             // Variable for teached Up-Time
-float pos = 0;                                                                        // Variable for actual position
-float pos_fb = 0;                                                                     // Variable to calculate position to be feedbacked to MQTT-Network
+float pos = 0.0f;                                                                        // Variable for actual position
+float pos_fb = 0.0f;                                                                     // Variable to calculate position to be feedbacked to MQTT-Network
 unsigned long MovedTime = 0;                                                          // Variable for time, beeing in motion
 unsigned long StartMoveTime = 0;                                                      // Variable for Motion-Start-Time
 unsigned long StartPosCalcTime = 0;                                                   // Variable for Start-Time to calcualte position
@@ -101,7 +101,8 @@ bool down_pressed = false;                                                      
 unsigned long LastTime = 0;                                                           // Variable to store last time of meassurement
 unsigned long CurrentTime = 0;                                                        // Variable to store actual time
 unsigned long interval = 1000;                                                        // Variable to store interval of MQTT-Connection-Check    *** Interval of MQTT-Check   ***
-String ProgRevision = "SmartSwitch V1.2";                                             // Variable to store Software-Revision                    *** Software-Revision        ***
+unsigned long manual_timer=0;                                                         //Variable to store the start of ManualMode
+String ProgRevision = "SmartSwitch V2.0";                                             // Variable to store Software-Revision                    *** Software-Revision        ***
 // *** Needed IOs ***************************************************************************************************************************************************************
 #define IO_I1 12                                                                      // Map IO_I1 (Input: UP) to GPIO12
 #define IO_I2 13                                                                      // Map IO_I2 (Input: DOWN) to GPIO13
@@ -368,6 +369,19 @@ void moveDown() {
   digitalWrite(IO_O1, HIGH);                                                          // Set IO_O1 Relais (power on motor)
 }
 
+/ ##############################################################################################################################################################################
+// ### Stop Manual Control after 1 min  ########################################################################################################################################################
+// ##############################################################################################################################################################################
+void ManualControlTimer(){
+   unsigned long TimerValue = millis();                                                 // Get current time
+  if ((TimerValue - manual_timer) >= 600) {                                         // Wait interval-time until stop manual Mode
+    Serial.println("MANUAL_STOP");                                                    // Debug printing
+    ausgabe = "Normal operation...";                                                  // Build strings to send to MQTT-Broker and send it                                                           // +++
+    top = topic + hostname_char + "/status/info/";                                    // Built topic to sent message to                                                                             // +++
+    client.publish(top.c_str(), ausgabe.c_str());                                     // Publish MQTT-Message                                                                                       // +++
+    manual_flag = false;                                                              // Reset Manual-Flag
+  }
+}
 // ##############################################################################################################################################################################
 // ### Stop shutter movement ####################################################################################################################################################
 // ##############################################################################################################################################################################
@@ -378,10 +392,10 @@ void motionStop() {
   
   MovedTime = MovedTime - millis();                                                   // Calculate, how long motor was moving
   if (pos_fb > 100) {                                                                 // Position will be calculated during complete motion
-    pos_fb = 100;                                                                     // so values <0 and >100 are possible (time-safeness to open/close completely)
+    pos_fb = 100.0f;                                                                     // so values <0 and >100 are possible (time-safeness to open/close completely)
   }                                                                                   // but feedbacked position must between 0 and 100
   if (pos_fb < 0) {                                                                   // so if value out of range
-    pos_fb = 0;                                                                       // set it into range
+    pos_fb = 0.0f;                                                                       // set it into range
   }
   pos = pos_fb;                                                                       // Set actual position to calculated position
   ausgabe = String(pos);                                                              // Build strings to send to MQTT-Broker and send it
@@ -441,7 +455,7 @@ void MQTT_Handling() {
     moveUp();                                                                         // Open shutter
     drive = true;                                                                     // Set Motion-Flag
     moving_up = true;                                                                 // Set UP-Flag
-    pos_fb = pos;                                                                     // Set calculated position to actual position
+    pos_fb = int(pos);                                                                     // Set calculated position to actual position
   }
 // *** MQTT-Command: DOWN *******************************************************************************************************************************************************    
   if (String(MQTTget_message) == "DOWN") {
@@ -455,7 +469,7 @@ void MQTT_Handling() {
     moveDown();                                                                       // Close shutter
     drive = true;                                                                     // Set Motion-Flag
     moving_down = true;                                                               // Set DOWN-Flag
-    pos_fb = pos;                                                                     // Set calculated position to actual position
+    pos_fb = int(pos);                                                                     // Set calculated position to actual position
   }
 // *** MQTT-Command: STOP *******************************************************************************************************************************************************    
   if (String(MQTTget_message) == "STOP") {
@@ -522,19 +536,19 @@ void MQTT_Handling() {
       soll = value;                                                                   // Set Target-Value
       StartPosCalcTime = millis();                                                    // Set start time for Position-Calculation-Timer
       StartMoveTime = StartPosCalcTime;                                               // Set start time for Movement-Timer
-      if (soll > pos) {                                                               // If Target-Position > as actual position
-        delta = soll - pos;                                                           // Calculate delta
+      if (int(soll) > pos) {                                                               // If Target-Position > as actual position
+        delta = soll - int(pos);                                                           // Calculate delta
         drive = true;                                                                 // Set Motion-Flag
         moving_down = true;                                                           // Set DOWN-Flag
-        pos_fb = pos;                                                                 // Set calculated position to actual position
+        pos_fb = int(pos);                                                                 // Set calculated position to actual position
         percentage = true;                                                            // Set Percentage-Flag
         moveDown();                                                                   // Start motion
       }
-      if (pos > soll) {                                                               // If Target-Value < as actual position
-        delta = pos - soll;                                                           // Calculate delta
+      if (int(pos) > soll) {                                                               // If Target-Value < as actual position
+        delta = int(pos) - soll;                                                           // Calculate delta
         drive = true;                                                                 // Set Motion-Flag
         moving_up = true;                                                             // Set UP-Flag
-        pos_fb = pos;                                                                 // Set calculated position to actual position
+        pos_fb = int(pos);                                                                 // Set calculated position to actual position
         percentage = true;                                                            // Set Percentage-Flag
         moveUp();                                                                     // Start motion
       }
@@ -559,6 +573,7 @@ void ButtonHandling() {
     delay(100);                                                                       // Delay for debouncing Buttons
 // *** Manual control of shutter ************************************************************************************************************************************************
     if (manual_flag) {                                                                // If Manual-Movement-Flag is set
+      ManualControlTimer();                                                           //Start ManualControlTimer
       if (!digitalRead(IO_I1)) {                                                      // And if UP is pressed
         moveUp();                                                                     // Start Up-Movement
         do {                                                                          // Do as long as button is pressed
@@ -642,6 +657,25 @@ void ButtonHandling() {
       EEPROM.end();                                                                   // Free RAM copy of structure
       return;                                                                         // Return
     }
+
+
+
+// *** Start Mannual Mode with both Button-Press for one second *********************************************************************************************************************************************
+   if (!digitalRead(IO_I1) && !digitalRead(IO_I2)) {                                   // If  both buttons are pressed
+    for (int i = 1; i <= 10; i++) {                                                   // Check for one second 
+      delay(100);                                                                     // Every tenth of a second
+      if (!digitalRead(IO_I1) && !digitalRead(IO_I2) && i==10) {
+        Serial.println("MANUAL_START");                                                   // Debug printing
+        ausgabe = "Manual-Mode...";                                                       // Build strings to send to MQTT-Broker and send it                                                           // +++
+        top = topic + hostname_char + "/status/info/";                                    // Built topic to sent message to                                                                             // +++
+        client.publish(top.c_str(), ausgabe.c_str());                                     // Publish MQTT-Message                                                                                       // +++
+        manual_flag = true;                                                               // Set Manual-Flag}
+        manual_timer = millis();                                                          //StartTimer for Manual Mode
+      else { 
+        return;   
+      } 
+    } 
+   }
 // *** Handling normal Button-Press *********************************************************************************************************************************************
     if(!teach_flag && !manual_flag) {                                                 // If no special flag (either teach or manual) is set
       if (!digitalRead(IO_I1)) {                                                      // If UP is pressed
@@ -650,7 +684,7 @@ void ButtonHandling() {
           return;                                                                     // Return
         }
         moveUp();                                                                     // Otherwise open shutter
-        pos_fb = pos;                                                                 // Set calculated position to actual position
+        pos_fb = int(pos);                                                                 // Set calculated position to actual position
         float calc_time = float(up_time);                                             // Store UP-Time in temporary variable
         for (int i = 1; i <= 10; i++) {                                               // Do for one second
           delay(100);                                                                 // Every tenth of a second
@@ -689,7 +723,7 @@ void ButtonHandling() {
           return;                                                                     // Return
         }
         moveDown();                                                                   // Otherwise close shutter
-        pos_fb = pos;                                                                 // Set calculated position to actual position
+        pos_fb = int(pos);                                                                 // Set calculated position to actual position
         float calc_time = float(down_time);                                           // Store DOWN-Time in temporary variable
         for (int i = 1; i <= 10; i++) {                                               // Do for one second:
           delay(100);                                                                 // Every tenth of a second
@@ -738,18 +772,18 @@ void MoveNow() {
       pos_fb = pos_fb - (100 / calc_time);                                            // Calculate new position
     }
     if (percentage) {                                                                 // If target value is a percentage value
-      if (CurrentTime > StartMoveTime + (100 * (up_time / 100) * delta)) {            // Move as long as target value isn't reached
-        pos = soll;                                                                   // If target value is reached, set new position
-        pos_fb = soll;                                                                                                                                                                              // +++
+      if (CurrentTime > StartMoveTime + (100 * (float (up_time) / 100) * delta)) {            // Move as long as target value isn't reached
+        pos = float(soll);                                                                   // If target value is reached, set new position
+        pos_fb = float(soll);                                                                                                                                                                              // +++
         motionStop();                                                                 // Stop motion
         drive = false;                                                                // Reset flags
         moving_up = false;
         percentage = false;
       }
     } else {                                                                          // If shutter should move to end position
-      if (CurrentTime > StartMoveTime + ((100 * (up_time / 100) * pos) + 3000)){      // Move as long as end position isn't reached
+      if (CurrentTime > StartMoveTime + ((100 * (float (up_time) / 100) * pos) + 3000)){      // Move as long as end position isn't reached
         pos = 0.0f;                                                                      // If end position is reached, set position to endposition
-        pos_fb = 0;                                                                                                                                                                                 // +++
+        pos_fb = 0.0f;                                                                                                                                                                                 // +++
         motionStop();                                                                 // Stop motion
         drive = false;                                                                // Reset flags
         moving_up = false;
@@ -765,18 +799,18 @@ void MoveNow() {
       pos_fb = pos_fb + (100 / calc_time);                                            // Calculate new position
     }
     if (percentage) {                                                                 // If target value is a percentage value
-      if (CurrentTime > StartMoveTime + (100 * (down_time / 100) * delta)) {          // Move as long as target value isn't reached
-        pos = soll;                                                                   // If target value is reached, set new position
-        pos_fb = soll;                                                                                                                                                                              // +++
+      if (CurrentTime > StartMoveTime + (100 * (float (down_time) / 100) * delta)) {          // Move as long as target value isn't reached
+        pos = float(soll);                                                                   // If target value is reached, set new position
+        pos_fb = float(soll);                                                                                                                                                                              // +++
         motionStop();                                                                 // Stop motion
         drive = false;                                                                // Reset flags
         moving_down = false;
         percentage = false;
       }
     } else {                                                                          // If shutter should move to end position
-      if (CurrentTime > StartMoveTime + ((100 * (down_time / 100) * (100 - pos)) + 3000)){   // Move as long as end position isn't reached
-        pos = 100;                                                                    // If end position is reached, set position to endposition
-        pos_fb = 100;                                                                                                                                                                               // +++
+      if (CurrentTime > StartMoveTime + ((100 * (float (down_time) / 100) * (100 - pos)) + 3000)){   // Move as long as end position isn't reached
+        pos = 100.0f;                                                                    // If end position is reached, set position to endposition
+        pos_fb = 100.0f;                                                                                                                                                                               // +++
         motionStop();                                                                 // Stop motion
         drive = false;                                                                // Reset flags
         moving_down = false;
