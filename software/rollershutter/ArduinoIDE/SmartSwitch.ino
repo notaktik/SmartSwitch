@@ -103,7 +103,7 @@ unsigned long LastTime = 0;                                                     
 unsigned long CurrentTime = 0;                                                        // Variable to store actual time
 unsigned long interval = 1000;                                                        // Variable to store interval of MQTT-Connection-Check    *** Interval of MQTT-Check   ***
 unsigned long manual_timer=0;                                                         //Variable to store the start of ManualMode
-String ProgRevision = "SmartSwitch Vx.9";                                             // Variable to store Software-Revision                    *** Software-Revision        ***
+String ProgRevision = "SmartSwitch V2.1";                                             // Variable to store Software-Revision                    *** Software-Revision        ***
 // *** Needed IOs ***************************************************************************************************************************************************************
 #define IO_I1 12                                                                      // Map IO_I1 (Input: UP) to GPIO12
 #define IO_I2 13                                                                      // Map IO_I2 (Input: DOWN) to GPIO13
@@ -112,7 +112,9 @@ String ProgRevision = "SmartSwitch Vx.9";                                       
 // *** Needed Services **********************************************************************************************************************************************************
 WiFiClient espClient;                                                                 // Create a WiFi-Client
 PubSubClient client(espClient);                                                       // Create a PubSubClient-Object (MQTT)
+ int firstStart=0;
 
+ 
 // ##############################################################################################################################################################################
 // ### Calback for Wifi got IP ##################################################################################################################################################
 // ##############################################################################################################################################################################
@@ -180,6 +182,9 @@ void saveConfigCallback () {
 // ### Setup Routine ############################################################################################################################################################
 // ##############################################################################################################################################################################
 void setup() {
+  //rst_info* resetInfo;
+  //resetInfo = ESP.getResetInfoPtr();
+  rst_info* rinfo = ESP.getResetInfoPtr();
 // *** Initialize IO-Pins *******************************************************************************************************************************************************
   pinMode(IO_I1, INPUT);                                                              // Set IO_I1 as Input-Pin
   pinMode(IO_I2, INPUT);                                                              // Set IO_I2 as Input-Pin
@@ -376,7 +381,7 @@ void moveDown() {
 // ##############################################################################################################################################################################
 void ManualControlTimer(){
    unsigned long TimerValue = millis();                                                 // Get current time
-  if ((TimerValue - manual_timer) >= 600) {                                         // Wait interval-time until stop manual Mode
+  if ((TimerValue - manual_timer) >= 6000) {                                         // Wait interval-time until stop manual Mode
     Serial.println("MANUAL_STOP");                                                    // Debug printing
     ausgabe = "Normal operation...";                                                  // Build strings to send to MQTT-Broker and send it                                                           // +++
     top = topic + hostname_char + "/status/info/";                                    // Built topic to sent message to                                                                             // +++
@@ -839,13 +844,28 @@ void MoveNow() {
 // ### Main Routine #############################################################################################################################################################
 // ##############################################################################################################################################################################
 void loop() {
-  ArduinoOTA.handle();                                                                // Start OTA-Handle
-  if (!client.connected()) {                                                          // If MQTT-Client isn't conntected to broker
-    MQTT_reconnect();                                                                 // Reconnect to MQTT-Broker
-  } else {                                                                            // If connected to MQTT-Broker  
-    if (newMQTTmessage) {                                                             // If new MQTT-Message avaliable
-      newMQTTmessage = false;                                                         // Reset "New-MQTT-Message-Flag"
-      MQTT_Handling();                                                                // Call MQTT-Handling
+ 
+
+  if (client.connected() && firstStart == 0){
+    firstStart=1;
+    ausgabe = "Reboot done!";                                                     // Build strings to send to MQTT-Broker and send it
+    top = topic + hostname_char + "/status/boot/";                                // Built topic to sent message to
+    client.publish(top.c_str(), ausgabe.c_str());                                   // Publish MQTT-Message
+   //rst_info
+    ausgabe = ESP.getResetReason().c_str();                                                    // Build strings to send to MQTT-Broker and send it
+    top = topic + hostname_char + "/status/boot/";                                 // Built topic to sent message to
+    client.publish(top.c_str(), ausgabe.c_str());                                   // Publish MQTT-Message
+    
+  }
+  if (!moving_up && !moving_down && !percentage) {                                     // If shutter is moving no mqtt handle
+    ArduinoOTA.handle();                                                                // Start OTA-Handle
+    if (!client.connected()) {                                                          // If MQTT-Client isn't conntected to broker
+      MQTT_reconnect();                                                                 // Reconnect to MQTT-Broker
+    } else {                                                                            // If connected to MQTT-Broker  
+      if (newMQTTmessage) {                                                             // If new MQTT-Message avaliable
+        newMQTTmessage = false;                                                         // Reset "New-MQTT-Message-Flag"
+        MQTT_Handling();                                                                // Call MQTT-Handling
+      }
     }
   }
   ButtonHandling();                                                                   // Call Button-Handling Routine
