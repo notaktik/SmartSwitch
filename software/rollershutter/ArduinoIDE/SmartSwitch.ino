@@ -102,7 +102,7 @@ unsigned long LastTime = 0;                                                     
 unsigned long CurrentTime = 0;                                                        // Variable to store actual time
 unsigned long interval = 1000;                                                        // Variable to store interval of MQTT-Connection-Check    *** Interval of MQTT-Check   ***
 unsigned long manual_timer=0;                                                         //Variable to store the start of ManualMode
-String ProgRevision = "SmartSwitch V2.0";                                             // Variable to store Software-Revision                    *** Software-Revision        ***
+String ProgRevision = "SmartSwitch Vx.9";                                             // Variable to store Software-Revision                    *** Software-Revision        ***
 // *** Needed IOs ***************************************************************************************************************************************************************
 #define IO_I1 12                                                                      // Map IO_I1 (Input: UP) to GPIO12
 #define IO_I2 13                                                                      // Map IO_I2 (Input: DOWN) to GPIO13
@@ -518,7 +518,8 @@ void MQTT_Handling() {
     Serial.println("MANUAL_START");                                                   // Debug printing
     ausgabe = "Manual-Mode...";                                                       // Build strings to send to MQTT-Broker and send it                                                           // +++
     top = topic + hostname_char + "/status/info/";                                    // Built topic to sent message to                                                                             // +++
-    client.publish(top.c_str(), ausgabe.c_str());                                     // Publish MQTT-Message                                                                                       // +++
+    client.publish(top.c_str(), ausgabe.c_str());                                     // Publish MQTT-Message       
+    manual_timer = millis();                                                          //StartTimer for Manual Mode                                                                                // +++
     manual_flag = true;                                                               // Set Manual-Flag
   }
 // *** MQTT-Command: MANUAL_STOP ************************************************************************************************************************************************    
@@ -574,7 +575,6 @@ void ButtonHandling() {
     delay(100);                                                                       // Delay for debouncing Buttons
 // *** Manual control of shutter ************************************************************************************************************************************************
     if (manual_flag) {                                                                // If Manual-Movement-Flag is set
-      ManualControlTimer();                                                           //Start ManualControlTimer
       if (!digitalRead(IO_I1)) {                                                      // And if UP is pressed
         moveUp();                                                                     // Start Up-Movement
         do {                                                                          // Do as long as button is pressed
@@ -664,8 +664,8 @@ void ButtonHandling() {
 // *** Start Mannual Mode with both Button-Press for one second *********************************************************************************************************************************************
     if (!digitalRead(IO_I1) && !digitalRead(IO_I2)) {                                   // If  both buttons are pressed
       for (int i = 1; i <= 10; i++) {                                                   // Check for one second 
-        delay(100);                                                                     // Every tenth of a second
-        if (!digitalRead(IO_I1) && !digitalRead(IO_I2) && i==10) {
+        delay(100);
+        if (((!digitalRead(IO_I1) && !digitalRead(IO_I2)) && i==10)) {
           Serial.println("MANUAL_START");                                                   // Debug printing
           ausgabe = "Manual-Mode...";                                                       // Build strings to send to MQTT-Broker and send it                                                           // +++
           top = topic + hostname_char + "/status/info/";                                    // Built topic to sent message to                                                                             // +++
@@ -673,9 +673,6 @@ void ButtonHandling() {
           manual_flag = true;                                                               // Set Manual-Flag}
           manual_timer = millis();                                                          //StartTimer for Manual Mode
         }
-        else { 
-          return;   
-        } 
       } 
     }
 
@@ -688,7 +685,7 @@ void ButtonHandling() {
         }
         moveUp();                                                                     // Otherwise open shutter
         pos_fb = int(pos);                                                                 // Set calculated position to actual position
-        float calc_time = float(up_time);                                             // Store UP-Time in temporary variable
+        float calc_time = float(up_time);                                                          // Store UP-Time in temporary variable
         for (int i = 1; i <= 10; i++) {                                               // Do for one second
           delay(100);                                                                 // Every tenth of a second
           if (pos <= 0) {                                                             // If Shutter is already completly opened
@@ -727,7 +724,7 @@ void ButtonHandling() {
         }
         moveDown();                                                                   // Otherwise close shutter
         pos_fb = int(pos);                                                                 // Set calculated position to actual position
-        float calc_time = float(down_time);                                           // Store DOWN-Time in temporary variable
+         float calc_time = float(down_time);                                           // Store DOWN-Time in temporary variable
         for (int i = 1; i <= 10; i++) {                                               // Do for one second:
           delay(100);                                                                 // Every tenth of a second
           if (pos >= 100) {                                                           // If shutter is already compleatly closed
@@ -771,20 +768,20 @@ void MoveNow() {
     unsigned long CurrentTime = millis();                                             // Get current time
     if (CurrentTime - StartPosCalcTime > 100) {                                       // Every 100ms
       StartPosCalcTime = CurrentTime;                                                 // Start new period of time
-      float calc_time = float(up_time);                                               // Store UP-Time in temporary variable
+       float calc_time = float(up_time);                                               // Store UP-Time in temporary variable
       pos_fb = pos_fb - (100 / calc_time);                                            // Calculate new position
     }
     if (percentage) {                                                                 // If target value is a percentage value
       if (CurrentTime > StartMoveTime + (100 * (float (up_time) / 100) * delta)) {            // Move as long as target value isn't reached
-        pos = float(soll);                                                                   // If target value is reached, set new position
-        pos_fb = float(soll);                                                                                                                                                                              // +++
+        pos = int(soll);                                                                   // If target value is reached, set new position
+        pos_fb = int(soll);                                                                                                                                                                              // +++
         motionStop();                                                                 // Stop motion
         drive = false;                                                                // Reset flags
         moving_up = false;
         percentage = false;
       }
     } else {                                                                          // If shutter should move to end position
-      if (CurrentTime > StartMoveTime + ((100 * (float (up_time) / 100) * pos) + 3000)){      // Move as long as end position isn't reached
+      if (CurrentTime > StartMoveTime + ((100 * (float(up_time) / 100) * pos) + 3000)){      // Move as long as end position isn't reached
         pos = 0.0f;                                                                      // If end position is reached, set position to endposition
         pos_fb = 0.0f;                                                                                                                                                                                 // +++
         motionStop();                                                                 // Stop motion
@@ -798,11 +795,11 @@ void MoveNow() {
     unsigned long CurrentTime = millis();                                             // Get current time
     if (CurrentTime - StartPosCalcTime > 100) {                                       // Every 100ms
       StartPosCalcTime = CurrentTime;                                                 // Start new period of time
-      float calc_time = float(down_time);                                             // Store DOWN-Time in temporary variable
+	  float calc_time = float(down_time);                                             // Store DOWN-Time in temporary variable
       pos_fb = pos_fb + (100 / calc_time);                                            // Calculate new position
     }
     if (percentage) {                                                                 // If target value is a percentage value
-      if (CurrentTime > StartMoveTime + (100 * (float (down_time) / 100) * delta)) {          // Move as long as target value isn't reached
+      if (CurrentTime > StartMoveTime + (100 * (float(down_time) / 100) * delta)) {          // Move as long as target value isn't reached
         pos = float(soll);                                                                   // If target value is reached, set new position
         pos_fb = float(soll);                                                                                                                                                                              // +++
         motionStop();                                                                 // Stop motion
@@ -837,6 +834,9 @@ void loop() {
   }
   ButtonHandling();                                                                   // Call Button-Handling Routine
   MoveNow();                                                                          // Call Move-According-Time Routine
+  if(manual_flag){
+          ManualControlTimer();                                                        //Start ManualControlTimer
+  }
   CurrentTime = millis();                                                             // Get current time
   if ((CurrentTime - LastTime) >= interval) {                                         // Wait interval-time until checking MQTT-Connection
     LastTime = CurrentTime;
