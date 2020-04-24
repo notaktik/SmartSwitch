@@ -87,9 +87,10 @@ unsigned int down_time = 0;                                                     
 unsigned int up_time = 0;                                                             // Variable for teached Up-Time
 float pos = 0.0f;                                                                        // Variable for actual position
 float pos_fb = 0.0f;                                                                     // Variable to calculate position to be feedbacked to MQTT-Network
-unsigned long MovedTime = 0;                                                          // Variable for time, beeing in motion
+//unsigned long MovedTime = 0;                                                          // Variable for time, beeing in motion
 unsigned long StartMoveTime = 0;                                                      // Variable for Motion-Start-Time
 unsigned long StartPosCalcTime = 0;                                                   // Variable for Start-Time to calcualte position
+unsigned long percentageTime = 0;
 bool moving_up = false;                                                               // Flag for Up-Movement
 bool moving_down = false;                                                             // Flag for Down-Movement
 bool teach_flag = false;                                                              // Flag for Teaching-Mode
@@ -351,7 +352,7 @@ void moveUp() {
   ausgabe = "UP";                                                                     // Build strings to send to MQTT-Broker and send it
   top = topic + hostname_char + "/status/moving/";                                    // Built topic to sent message to
   client.publish(top.c_str(), ausgabe.c_str());                                       // Publish MQTT-Message
-  MovedTime = millis();                                                               // Get Start-Time of movement
+  // = millis();                                                               // Get Start-Time of movement
   digitalWrite(IO_O2, LOW);                                                           // Reset IO_O2 Relais (set direction UP)
   delay(200);                                                                         // Delay 200ms
   digitalWrite(IO_O1, HIGH);                                                          // Set IO_O1 Relais (power on motor)
@@ -364,7 +365,7 @@ void moveDown() {
   ausgabe = "DOWN";                                                                   // Build strings to send to MQTT-Broker and send it
   top = topic + hostname_char + "/status/moving/";                                    // Built topic to sent message to
   client.publish(top.c_str(), ausgabe.c_str());                                       // Publish MQTT-Message
-  MovedTime = millis();                                                               // Get Start-Time of movement
+  //MovedTime = millis();                                                               // Get Start-Time of movement
   digitalWrite(IO_O2, HIGH);                                                          // Set IO_O2 Relais (set direction DOWN)
   delay(200);                                                                         // Delay 200ms
   digitalWrite(IO_O1, HIGH);                                                          // Set IO_O1 Relais (power on motor)
@@ -391,7 +392,7 @@ void motionStop() {
   delay(200);                                                                         // Delay 200ms
   digitalWrite(IO_O2, LOW);                                                           // Reset IO_O2 (power off relais - direction)
   
-  MovedTime = MovedTime - millis();                                                   // Calculate, how long motor was moving
+  //MovedTime = MovedTime - millis();                                                   // Calculate, how long motor was moving - not needed
   if (pos_fb > 100) {                                                                 // Position will be calculated during complete motion
     pos_fb = 100.0f;                                                                     // so values <0 and >100 are possible (time-safeness to open/close completely)
   }                                                                                   // but feedbacked position must between 0 and 100
@@ -538,20 +539,22 @@ void MQTT_Handling() {
       soll = value;                                                                   // Set Target-Value
       StartPosCalcTime = millis();                                                    // Set start time for Position-Calculation-Timer
       StartMoveTime = StartPosCalcTime;                                               // Set start time for Movement-Timer
-      if (int(soll) > pos) {                                                               // If Target-Position > as actual position
+      if (int(soll) > (pos+2)) {                                                       // If Target-Position > as actual position - under 2 % no change
         delta = soll - int(pos);                                                           // Calculate delta
         drive = true;                                                                 // Set Motion-Flag
         moving_down = true;                                                           // Set DOWN-Flag
         pos_fb = int(pos);                                                                 // Set calculated position to actual position
         percentage = true;                                                            // Set Percentage-Flag
+        percentageTime = StartMoveTime +(100 * (float (down_time) / 100) * delta);       // calculate Time to move 
         moveDown();                                                                   // Start motion
       }
-      if (int(pos) > soll) {                                                               // If Target-Value < as actual position
+      if ((int(pos)+2) > soll) {                                                               // If Target-Value < as actual position under 2 5 no change
         delta = int(pos) - soll;                                                           // Calculate delta
         drive = true;                                                                 // Set Motion-Flag
         moving_up = true;                                                             // Set UP-Flag
         pos_fb = int(pos);                                                                 // Set calculated position to actual position
         percentage = true;                                                            // Set Percentage-Flag
+        percentageTime = StartMoveTime +(100 * (float (up_time) / 100) * delta);       // calculate Time to move 
         moveUp();                                                                     // Start motion
       }
     }
@@ -684,12 +687,13 @@ void ButtonHandling() {
           return;                                                                     // Return
         }
         moveUp();                                                                     // Otherwise open shutter
-        pos_fb = int(pos);                                                                 // Set calculated position to actual position
-        float calc_time = float(up_time);                                                          // Store UP-Time in temporary variable
+        pos_fb = int(pos);                                                            // Set calculated position to actual position
+        // *** check for ManualMode**********************************************************************************************
+        float calc_time = float(up_time);                                             // Store UP-Time in temporary variable
         for (int i = 1; i <= 10; i++) {                                               // Do for one second
           delay(100);                                                                 // Every tenth of a second
           if (pos <= 0) {                                                             // If Shutter is already completly opened
-            pos = 0.0f;                                                                  // Position is 0
+            pos = 0.0f;                                                               // Position is 0
             motionStop();                                                             // Stop motion
             return;                                                                   // Return
           } else {                                                                    // Else
@@ -711,6 +715,7 @@ void ButtonHandling() {
         } else {                                                                      // If UP isn't pressed after 1s => start semi automatic mode
           StartPosCalcTime = millis();                                                // Set start time for Position-Calculation-Timer
           StartMoveTime = StartPosCalcTime;                                           // Set start time for Movement-Timer
+          percentageTime = StartMoveTime + ((100 * (float(up_time) / 100) * pos) + 1000); // calculate Time to move 
 //          moveUp();                                                                   // Open shutter
           drive = true;                                                               // Set Motion-Flag
           moving_up = true;                                                           // Set UP-Flag
@@ -750,7 +755,8 @@ void ButtonHandling() {
         } else {                                                                      // If DOWN isn't pressed after 1s => start semi automatic mode
           StartPosCalcTime = millis();                                                // Set start time for Position-Calculation-Timer
           StartMoveTime = StartPosCalcTime;                                           // Set start time for Movement-Timer
-//          moveDown();                                                                 // Close shutter
+          percentageTime = StartMoveTime + ((100 * (float (down_time) / 100) * (100 - pos)) + 3000);  // calculate Time to move 
+          //moveDown();                                                                 // Close shutter
           drive = true;                                                               // Set Motion-Flag
           moving_down = true;                                                         // Set DOWN-Flag
         }
@@ -772,21 +778,26 @@ void MoveNow() {
       pos_fb = pos_fb - (100 / calc_time);                                            // Calculate new position
     }
     if (percentage) {                                                                 // If target value is a percentage value
-      if (CurrentTime > StartMoveTime + (100 * (float (up_time) / 100) * delta)) {            // Move as long as target value isn't reached
+      //if (CurrentTime > StartMoveTime + (100 * (float (up_time) / 100) * delta)) {            // Move as long as target value isn't reached
+        if (CurrentTime > percentageTime) {
         pos = int(soll);                                                                   // If target value is reached, set new position
         pos_fb = int(soll);                                                                                                                                                                              // +++
         motionStop();                                                                 // Stop motion
         drive = false;                                                                // Reset flags
         moving_up = false;
         percentage = false;
+        percentageTime =0;                                                             // Reset percentageTime
       }
     } else {                                                                          // If shutter should move to end position
-      if (CurrentTime > StartMoveTime + ((100 * (float(up_time) / 100) * pos) + 3000)){      // Move as long as end position isn't reached
+      //if (CurrentTime > StartMoveTime + ((100 * (float(up_time) / 100) * pos) + 1000)){  // Move as long as end position isn't reached
+      if (CurrentTime > percentageTime) {
         pos = 0.0f;                                                                      // If end position is reached, set position to endposition
         pos_fb = 0.0f;                                                                                                                                                                                 // +++
         motionStop();                                                                 // Stop motion
         drive = false;                                                                // Reset flags
         moving_up = false;
+        percentageTime = 0;                                                             // Reset percentageTime
+
       }
     }
   }
@@ -795,25 +806,30 @@ void MoveNow() {
     unsigned long CurrentTime = millis();                                             // Get current time
     if (CurrentTime - StartPosCalcTime > 100) {                                       // Every 100ms
       StartPosCalcTime = CurrentTime;                                                 // Start new period of time
-	  float calc_time = float(down_time);                                             // Store DOWN-Time in temporary variable
+    float calc_time = float(down_time);                                             // Store DOWN-Time in temporary variable
       pos_fb = pos_fb + (100 / calc_time);                                            // Calculate new position
     }
     if (percentage) {                                                                 // If target value is a percentage value
-      if (CurrentTime > StartMoveTime + (100 * (float(down_time) / 100) * delta)) {          // Move as long as target value isn't reached
+    //  if (CurrentTime > StartMoveTime + (100 * (float(down_time) / 100) * delta)) {          // Move as long as target value isn't reached
+      if (CurrentTime > percentageTime) {
         pos = float(soll);                                                                   // If target value is reached, set new position
         pos_fb = float(soll);                                                                                                                                                                              // +++
         motionStop();                                                                 // Stop motion
         drive = false;                                                                // Reset flags
         moving_down = false;
         percentage = false;
+        percentageTime = 0;                                                             // Reset percentageTime
       }
     } else {                                                                          // If shutter should move to end position
-      if (CurrentTime > StartMoveTime + ((100 * (float (down_time) / 100) * (100 - pos)) + 3000)){   // Move as long as end position isn't reached
-        pos = 100.0f;                                                                    // If end position is reached, set position to endposition
+     // if (CurrentTime > StartMoveTime + ((100 * (float (down_time) / 100) * (100 - pos)) + 3000)){   // Move as long as end position isn't reached
+         if (CurrentTime > percentageTime) {
+          pos = 100.0f;                                                                    // If end position is reached, set position to endposition
         pos_fb = 100.0f;                                                                                                                                                                               // +++
         motionStop();                                                                 // Stop motion
         drive = false;                                                                // Reset flags
         moving_down = false;
+        percentageTime = 0;                                                             // Reset percentageTime
+
       }
     }
   }
