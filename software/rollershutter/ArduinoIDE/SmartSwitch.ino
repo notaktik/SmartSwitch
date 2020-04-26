@@ -99,11 +99,12 @@ int delta = 0;                                                                  
 int soll = 0;                                                                         // Variable for target position
 bool up_pressed = false;                                                              // Flag if UP was pressed
 bool down_pressed = false;                                                            // Flag if DOWN was pressed
+bool set_postion_flag =false;                                                         // Flag set postion Modus on or off
 unsigned long LastTime = 0;                                                           // Variable to store last time of meassurement
 unsigned long CurrentTime = 0;                                                        // Variable to store actual time
 unsigned long interval = 1000;                                                        // Variable to store interval of MQTT-Connection-Check    *** Interval of MQTT-Check   ***
 unsigned long manual_timer=0;                                                         //Variable to store the start of ManualMode
-String ProgRevision = "SmartSwitch V2.1";                                             // Variable to store Software-Revision                    *** Software-Revision        ***
+String ProgRevision = "SmartSwitch V2.2";                                             // Variable to store Software-Revision                    *** Software-Revision        ***
 // *** Needed IOs ***************************************************************************************************************************************************************
 #define IO_I1 12                                                                      // Map IO_I1 (Input: UP) to GPIO12
 #define IO_I2 13                                                                      // Map IO_I2 (Input: DOWN) to GPIO13
@@ -445,11 +446,11 @@ void MQTT_reconnect() {
 // ##############################################################################################################################################################################
 void MQTT_Handling() {
   int value = 0;                                                                      // Initialize variable for percentage value
-  if (drive) {                                                                        // If shutter is already moving
-    motionStop();                                                                     // Stop motion
-    drive = false;                                                                    // Reset Driving-Flag
-    delay(500);                                                                       // Delay 500ms
-  }
+  // if (drive) {                                                                        // If shutter is already moving
+  //   motionStop();                                                                     // Stop motion
+  //   drive = false;                                                                    // Reset Driving-Flag
+  //   delay(200);                                                                       // Delay 200ms
+  // }
 // *** MQTT-Command: UP *********************************************************************************************************************************************************    
   if (String(MQTTget_message) == "UP") {
     Serial.println("UP");                                                             // Debug printing
@@ -536,6 +537,22 @@ void MQTT_Handling() {
     client.publish(top.c_str(), ausgabe.c_str());                                     // Publish MQTT-Message                                                                                       // +++
     manual_flag = false;                                                              // Reset Manual-Flag
   }
+// *** MQTT-Command: SET_START ************************************************************************************************************************************************    
+  if (String(MQTTget_message) == "SET_START") {
+    Serial.println("Start Set Postition Modus");                                      // Debug printing
+    ausgabe = "Set Postition Modus on";                                               // Build strings to send to MQTT-Broker and send it                                                           // +++
+    top = topic + hostname_char + "/status/info/";                                    // Built topic to sent message to                                                                             // +++
+    client.publish(top.c_str(), ausgabe.c_str());                                     // Publish MQTT-Message                                                                                       // +++
+    set_postion_flag = true;                                                          // set_postion_Flag
+  }  
+  // *** MQTT-Command: SET_STOP ************************************************************************************************************************************************    
+  if (String(MQTTget_message) == "SET_STOP") {
+    Serial.println("Stop Set Postition Modus");                                       // Debug printing
+    ausgabe = "Set Postition Modus off";                                              // Build strings to send to MQTT-Broker and send it                                                           // +++
+    top = topic + hostname_char + "/status/info/";                                    // Built topic to sent message to                                                                             // +++
+    client.publish(top.c_str(), ausgabe.c_str());                                     // Publish MQTT-Message                                                                                       // +++
+    set_postion_flag = false;                                                          // set_postion_Flag
+  }  
 // *** MQTT-Command: <percentage value> *****************************************************************************************************************************************    
   if (isNumeric(String(MQTTget_message))) {
     if ((String(MQTTget_message).toInt() >= 0) && (String(MQTTget_message).toInt() <= 100)) {   // If MQTT-Message is numeric and between 0 and 100
@@ -562,6 +579,23 @@ void MQTT_Handling() {
         percentageTime = StartMoveTime +(100 * (float (up_time) / 100) * delta);       // calculate Time to move 
         moveUp();                                                                     // Start motion
       }
+    }
+    else{                                                                               //if value greater than 100%
+      if (set_postion_flag == true){                                                     // if set postions modus active
+        value = String(MQTTget_message).toInt();
+        pos = value-100;
+        ausgabe = "Set Postition Modus off";                                              // Build strings to send to MQTT-Broker and send it                                                           // +++
+        top = topic + hostname_char + "/status/info/";                                    // Built topic to sent message to                                                                             // +++
+        client.publish(top.c_str(), ausgabe.c_str());                                     // Publish MQTT-Message 
+        set_postion_flag = false;
+      }
+      else{                                                                               //if position modus not activated
+        ausgabe = "Set Postition Modus not activated - no change";                        // Build strings to send to MQTT-Broker and send it                                                           // +++
+        top = topic + hostname_char + "/status/info/";                                    // Built topic to sent message to                                                                             // +++
+        client.publish(top.c_str(), ausgabe.c_str());                                     // Publish MQTT-Message 
+        set_postion_flag = false;
+
+      }    
     }
   }
 }
