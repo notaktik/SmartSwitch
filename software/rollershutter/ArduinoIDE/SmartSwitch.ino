@@ -104,7 +104,7 @@ unsigned long LastTime = 0;                                                     
 unsigned long CurrentTime = 0;                                                        // Variable to store actual time
 unsigned long interval = 2000;                                                        // Variable to store interval of MQTT-Connection-Check    *** Interval of MQTT-Check   ***
 unsigned long manual_timer=0;                                                         //Variable to store the start of ManualMode
-String ProgRevision = "SmartSwitch V2.21";                                             // Variable to store Software-Revision                    *** Software-Revision        ***
+String ProgRevision = "SmartSwitch V2.22";                                             // Variable to store Software-Revision                    *** Software-Revision        ***
 // *** Needed IOs ***************************************************************************************************************************************************************
 #define IO_I1 12                                                                      // Map IO_I1 (Input: UP) to GPIO12
 #define IO_I2 13                                                                      // Map IO_I2 (Input: DOWN) to GPIO13
@@ -406,7 +406,7 @@ void motionStop() {
     pos_fb = 0.0f;                                                                       // set it into range
   }
   pos = pos_fb;                                                                       // Set actual position to calculated position
-  if(!teach_flag){
+ 
     ausgabe = String(pos);                                                              // Build strings to send to MQTT-Broker and send it
     top = topic + hostname_char + "/status/position/";                                  // Built topic to sent message to
     client.publish(top.c_str(), ausgabe.c_str());                                       // Publish MQTT-Message
@@ -420,7 +420,7 @@ void motionStop() {
     ausgabe = "STOP";                                                                   // Build strings to send to MQTT-Broker and send it
     top = topic + hostname_char + "/status/moving/";                                    // Built topic to sent message to
     client.publish(top.c_str(), ausgabe.c_str());                                       // Publish MQTT-Message
-  }
+  
   //EEPROM.begin(4095);                                                                 // Define EEPROM
   //EEPROM.put(30, pos);                                                                // Write "pos" to EEPROM
   //delay(200);                                                                         // Delay
@@ -822,13 +822,13 @@ void MoveNow() {
     if (percentage) {                                                                 // If target value is a percentage value
       //if (CurrentTime > StartMoveTime + (100 * (float (up_time) / 100) * delta)) {            // Move as long as target value isn't reached
         if (CurrentTime > percentageTime) {
-        pos = int(soll);                                                                   // If target value is reached, set new position
-        pos_fb = int(soll);                                                                                                                                                                              // +++
-        motionStop();                                                                 // Stop motion
-        drive = false;                                                                // Reset flags
-        moving_up = false;
-        percentage = false;
-        percentageTime =0;                                                             // Reset percentageTime
+          pos = int(soll);                                                              // If target value is reached, set new position
+          pos_fb = int(soll);                                                                                                                                                                              // +++
+          motionStop();                                                                 // Stop motion
+          drive = false;                                                                // Reset flags
+          moving_up = false;
+          percentage = false;
+          percentageTime =0;                                                             // Reset percentageTime
       }
     } else {                                                                          // If shutter should move to end position
       //if (CurrentTime > StartMoveTime + ((100 * (float(up_time) / 100) * pos) + 1000)){  // Move as long as end position isn't reached
@@ -846,7 +846,7 @@ void MoveNow() {
 // *** If moving_down flag is set ***********************************************************************************************************************************************
   if (moving_down) {                                                                  // If Move-DOWN-Flag is set
     unsigned long CurrentTime = millis();                                             // Get current time
-    if (CurrentTime - StartPosCalcTime > 100) {                                       // Every 100ms
+    if ((CurrentTime - StartPosCalcTime) > 100) {                                       // Every 100ms
       StartPosCalcTime = CurrentTime;                                                 // Start new period of time
     float calc_time = float(down_time);                                             // Store DOWN-Time in temporary variable
       pos_fb = pos_fb + (100 / calc_time);                                            // Calculate new position
