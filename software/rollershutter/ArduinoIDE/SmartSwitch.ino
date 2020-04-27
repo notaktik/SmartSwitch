@@ -276,7 +276,7 @@ void setup() {
   memcpy(MQTT_BROKER, broker, sizeof(broker));                                        // Transfer "broker" to "MQTT-BROKER"
   IPAddress addr;                                                                     // Declare variable for IP-Address
   if (!addr.fromString(MQTT_BROKER)) {                                                // Check if MQTT-BROKER is a valid IP
-    String ip_string = "192.168.2.115";                                               // If not, switch to Standard-IP
+    String ip_string = "192.168.178.100";                                             // If not, switch to Standard-IP
     ip_string.toCharArray(MQTT_BROKER, 40);                                           // Store Standard-IP to Char-Array
   }
   wifi_station_set_hostname(hostname_char);                                           // Set station hostname
@@ -406,19 +406,21 @@ void motionStop() {
     pos_fb = 0.0f;                                                                       // set it into range
   }
   pos = pos_fb;                                                                       // Set actual position to calculated position
-  ausgabe = String(pos);                                                              // Build strings to send to MQTT-Broker and send it
-  top = topic + hostname_char + "/status/position/";                                  // Built topic to sent message to
-  client.publish(top.c_str(), ausgabe.c_str());                                       // Publish MQTT-Message
-  ausgabe = String(pos);                                                              // Build strings to send to MQTT-Broker and send it
-  //top = topic + hostname_char + "/command/";                                          // Built topic to sent message to
-  //client.publish(top.c_str(), ausgabe.c_str(), true);                                 // Publish MQTT-Message
-  long rssi = WiFi.RSSI();                                                            // Get RSSI of WiFi-Connection
-  ausgabe = String(rssi);                                                             // Build strings to send to MQTT-Broker and send it
-  top = topic + hostname_char + "/status/rssi/";                                      // Built topic to sent message to
-  client.publish(top.c_str(), ausgabe.c_str());                                       // Publish MQTT-Message
-  ausgabe = "STOP";                                                                   // Build strings to send to MQTT-Broker and send it
-  top = topic + hostname_char + "/status/moving/";                                    // Built topic to sent message to
-  client.publish(top.c_str(), ausgabe.c_str());                                       // Publish MQTT-Message
+  if(!teach_flag){
+    ausgabe = String(pos);                                                              // Build strings to send to MQTT-Broker and send it
+    top = topic + hostname_char + "/status/position/";                                  // Built topic to sent message to
+    client.publish(top.c_str(), ausgabe.c_str());                                       // Publish MQTT-Message
+    ausgabe = String(pos);                                                              // Build strings to send to MQTT-Broker and send it
+    //top = topic + hostname_char + "/command/";                                          // Built topic to sent message to
+    //client.publish(top.c_str(), ausgabe.c_str(), true);                                 // Publish MQTT-Message
+    long rssi = WiFi.RSSI();                                                            // Get RSSI of WiFi-Connection
+    ausgabe = String(rssi);                                                             // Build strings to send to MQTT-Broker and send it
+    top = topic + hostname_char + "/status/rssi/";                                      // Built topic to sent message to
+    client.publish(top.c_str(), ausgabe.c_str());                                       // Publish MQTT-Message
+    ausgabe = "STOP";                                                                   // Build strings to send to MQTT-Broker and send it
+    top = topic + hostname_char + "/status/moving/";                                    // Built topic to sent message to
+    client.publish(top.c_str(), ausgabe.c_str());                                       // Publish MQTT-Message
+  }
   //EEPROM.begin(4095);                                                                 // Define EEPROM
   //EEPROM.put(30, pos);                                                                // Write "pos" to EEPROM
   //delay(200);                                                                         // Delay
@@ -694,6 +696,7 @@ void ButtonHandling() {
       client.publish(top.c_str(), ausgabe.c_str());                                   // Publish MQTT-Message
       EEPROM.begin(4095);                                                             // Define EEPROM
       EEPROM.put(10, down_time);                                                      // Write down_time to EEPROM
+      delay(10);
       EEPROM.put(20, up_time);                                                        // Write up_time to EEPROM
       delay(200);                                                                     // Delay
       EEPROM.commit();                                                                // Only needed for ESP8266 to get data written
