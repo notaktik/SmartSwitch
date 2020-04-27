@@ -102,9 +102,9 @@ bool down_pressed = false;                                                      
 bool set_postion_flag =false;                                                         // Flag set postion Modus on or off
 unsigned long LastTime = 0;                                                           // Variable to store last time of meassurement
 unsigned long CurrentTime = 0;                                                        // Variable to store actual time
-unsigned long interval = 1000;                                                        // Variable to store interval of MQTT-Connection-Check    *** Interval of MQTT-Check   ***
+unsigned long interval = 2000;                                                        // Variable to store interval of MQTT-Connection-Check    *** Interval of MQTT-Check   ***
 unsigned long manual_timer=0;                                                         //Variable to store the start of ManualMode
-String ProgRevision = "SmartSwitch V2.2";                                             // Variable to store Software-Revision                    *** Software-Revision        ***
+String ProgRevision = "SmartSwitch V2.21";                                             // Variable to store Software-Revision                    *** Software-Revision        ***
 // *** Needed IOs ***************************************************************************************************************************************************************
 #define IO_I1 12                                                                      // Map IO_I1 (Input: UP) to GPIO12
 #define IO_I2 13                                                                      // Map IO_I2 (Input: DOWN) to GPIO13
